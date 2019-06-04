@@ -13,7 +13,7 @@ async function getAnimeList(query = '') {
                 .map((item) => {
                     return {
                         title: item['title'],
-                        id: item['kitsu:id'],
+                        id: item['animetwist:id'],
                         image: `https://media.kitsu.io/anime/poster_images/${
                             item['kitsu:id']
                         }/small.jpg`,
@@ -22,7 +22,7 @@ async function getAnimeList(query = '') {
                 .filter((item) =>
                     item.title.toLowerCase().includes(query.toLowerCase()),
                 )
-                .slice(0, 20);
+                .slice(0, 50);
         });
 
     return animeFeed;
@@ -45,18 +45,6 @@ async function getLatestEpisodes() {
     return episodesFeed;
 }
 
-async function omdbSearch(query = '') {
-    const apiUrl = `http://www.omdbapi.com/?s=${query}&apikey=9699cca`;
-    const response = await fetch(apiUrl);
-    const json = await response.json();
-    const posters = (json.Search && json.Search) || [];
-    return (
-        posters.filter(
-            ({ Poster }) => Poster && Poster.startsWith('https://'),
-        ) || []
-    );
-}
-
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 bot.on('inline_query', async ({ inlineQuery, answerInlineQuery }) => {
@@ -69,7 +57,7 @@ bot.on('inline_query', async ({ inlineQuery, answerInlineQuery }) => {
         description: item.title,
         thumb_url: item.image,
         photo_url: item.image,
-        message_text: 'boh',
+        message_text: `Added ${item.title} to your collection!`,
     }));
     return answerInlineQuery(results);
 });
