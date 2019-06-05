@@ -67,15 +67,31 @@ bot.command('search', async (ctx: any) => {
         .slice(1)
         .join(' ');
     const animes = await getAnimeList(query);
+    const chatId = ctx.chat.id;
     for (let anime of animes) {
-        const keyboard = Extra.markup(
-            Markup.inlineKeyboard([
-                Markup.callbackButton(
-                    `✅ Follow ${anime.title}`,
-                    `follow ${anime.title}`,
-                ),
-            ]),
-        );
+        const alreadyFollowing = db
+            .get(anime.title)
+            // @ts-ignore: Missing
+            .includes(chatId)
+            .value();
+        const keyboard = !alreadyFollowing
+            ? Extra.markup(
+                  Markup.inlineKeyboard([
+                      Markup.callbackButton(
+                          `✅ Follow ${anime.title}`,
+                          `follow ${anime.title}`,
+                      ),
+                  ]),
+              )
+            : Extra.markup(
+                  Markup.inlineKeyboard([
+                      Markup.callbackButton(
+                          `❌ Unfollow ${anime.title}`,
+                          `unfollow ${anime.title}`,
+                      ),
+                  ]),
+              );
+
         ctx.replyWithHTML(
             `<b>${anime.title}</b>\n` +
                 `<a href="${anime.image}">&#8205;</a>` +
@@ -111,6 +127,13 @@ bot.action(/^follow (.+)/g, async (ctx) => {
 // @ts-ignore: Missing type
 bot.action(/^unfollow (.+)/g, async (ctx) => {
     const anime = ctx.match[1];
+    const chatId = ctx.chat.id;
+
+    db.get(anime)
+        // @ts-ignore: Missing type
+        .filter((id) => id != chatId)
+        .write();
+
     ctx.editMessageReplyMarkup(
         Markup.inlineKeyboard([
             Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),

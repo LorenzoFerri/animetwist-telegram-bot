@@ -16,6 +16,6 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "watch": "nodemon --ignore *.json --exec ts-node -- ./index.ts"
+        "watch": "nodemon --ignore db.json --exec ts-node -- ./index.ts"
     }
 }
