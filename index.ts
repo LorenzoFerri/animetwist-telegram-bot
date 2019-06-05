@@ -1,7 +1,12 @@
 import Telegraf from 'telegraf';
 import { Extra, Markup, Context } from 'telegraf';
 import fetch from 'node-fetch';
+import * as lowdb from 'lowdb';
+import * as FileSync from 'lowdb/adapters/Filesync';
 
+const adapter = new FileSync('db.json');
+const db = lowdb(adapter);
+db.defaults({}).write();
 require('dotenv').config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -39,7 +44,6 @@ async function getLatestEpisodes() {
         {},
     )
         .then((res) => res.json())
-        // .then((res) => res.items.map((item) => item['anime:title']));
         .then((res) => {
             return res.items.map((item) => {
                 return {
@@ -50,20 +54,6 @@ async function getLatestEpisodes() {
         });
     return episodesFeed;
 }
-
-bot.on('inline_query', async ({ inlineQuery, answerInlineQuery }) => {
-    const anime = await getAnimeList(inlineQuery.query);
-    const results = anime.map((item) => ({
-        type: 'article',
-        id: item.id,
-        title: item.title,
-        description: item.title,
-        thumb_url: item.image,
-        photo_url: item.image,
-        message_text: `Added ${item.title} to your collection!`,
-    }));
-    return answerInlineQuery(results);
-});
 
 bot.start(async (ctx) => {
     const reply = `Anime Twist Bot
@@ -78,44 +68,52 @@ bot.command('search', async (ctx: any) => {
         .join(' ');
     const animes = await getAnimeList(query);
     for (let anime of animes) {
+        const keyboard = Extra.markup(
+            Markup.inlineKeyboard([
+                Markup.callbackButton(
+                    `✅ Follow ${anime.title}`,
+                    `follow ${anime.title}`,
+                ),
+            ]),
+        );
         ctx.replyWithHTML(
             `<b>${anime.title}</b>\n` +
                 `<a href="${anime.image}">&#8205;</a>` +
                 `<i>${anime.description}</i>\n` +
                 `<a href="${anime.link}">Watch on Twist.moe</a>\n`,
             // @ts-ignore: Missing type
-            Extra.markup(
-                Markup.inlineKeyboard([
-                    Markup.callbackButton(
-                        `Follow ${anime.title}`,
-                        `follow ${anime.title}`,
-                    ),
-                ]),
-            ),
+            keyboard,
         );
     }
 });
 
 // @ts-ignore: Missing type
-bot.action(/follow (.+)/g, async (ctx) => {
+bot.action(/^follow (.+)/g, async (ctx) => {
+    const anime = ctx.match[1];
+    const chatId = ctx.chat.id;
+    if (db.has(anime).value()) {
+        console.log('a');
+        db.get(anime)
+            // @ts-ignore: Missing type
+            .push(chatId)
+            .write();
+    } else {
+        console.log('b');
+        db.set(anime, [chatId]).write();
+    }
     ctx.editMessageReplyMarkup(
         Markup.inlineKeyboard([
-            Markup.callbackButton(
-                `Unfollow ${ctx.match[1]}`,
-                `unfollow ${ctx.match[1]}`,
-            ),
+            Markup.callbackButton(`❌ Unfollow ${anime}`, `unfollow ${anime}`),
         ]),
     );
 });
 
 // @ts-ignore: Missing type
-bot.action(/unfollow (.+)/g, async (ctx) => {
+bot.action(/^unfollow (.+)/g, async (ctx) => {
+    const anime = ctx.match[1];
     ctx.editMessageReplyMarkup(
         Markup.inlineKeyboard([
-            Markup.callbackButton(
-                `Follow ${ctx.match[1]}`,
-                `follow ${ctx.match[1]}`,
-            ),
+            Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),
         ]),
     );
 });

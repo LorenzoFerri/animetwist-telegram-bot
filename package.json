@@ -5,7 +5,9 @@
     "author": "Lorenzo Ferri <lorenzo.ferri@usi.ch>",
     "license": "MIT",
     "dependencies": {
+        "@types/lowdb": "^1.0.9",
         "dotenv": "^8.0.0",
+        "lowdb": "^1.0.0",
         "node-fetch": "^2.6.0",
         "nodemon": "^1.19.1",
         "telegraf": "^3.30.1",
@@ -14,6 +16,6 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "watch": "nodemon --exec ts-node -- ./index.ts"
+        "watch": "nodemon --ignore *.json --exec ts-node -- ./index.ts"
     }
 }
