@@ -1,7 +1,9 @@
 import Telegraf from 'telegraf';
+import { Extra, Markup, Context } from 'telegraf';
 import fetch from 'node-fetch';
 
 require('dotenv').config();
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
 async function getAnimeList(query = '') {
     const animeFeed = await fetch(
@@ -15,9 +17,11 @@ async function getAnimeList(query = '') {
                     return {
                         title: item['title'],
                         id: item['animetwist:id'],
+                        link: item['link'],
                         image: `https://media.kitsu.io/anime/poster_images/${
                             item['kitsu:id']
-                        }/tiny.jpg`,
+                        }/large.jpg`,
+                        description: item['description'],
                     };
                 })
                 .filter((item) =>
@@ -47,8 +51,6 @@ async function getLatestEpisodes() {
     return episodesFeed;
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
 bot.on('inline_query', async ({ inlineQuery, answerInlineQuery }) => {
     const anime = await getAnimeList(inlineQuery.query);
     const results = anime.map((item) => ({
@@ -65,27 +67,57 @@ bot.on('inline_query', async ({ inlineQuery, answerInlineQuery }) => {
 
 bot.start(async (ctx) => {
     const reply = `Anime Twist Bot
-Hi use @animetwist_bot <anime name> and select an anime that you would like to receive notifications on new episodes`;
+Hi use /search <anime name> and select an anime that you would like to receive notifications on new episodes`;
     ctx.reply(reply);
 });
 
-bot.command('search', async (ctx) => {
+bot.command('search', async (ctx: any) => {
     const query = ctx.update.message.text
         .split(' ')
         .slice(1)
         .join(' ');
     const animes = await getAnimeList(query);
     for (let anime of animes) {
-        ctx.replyWithHTML(`
-<b>bold</b>, <strong>bold</strong>
-<i>italic</i>, <em>italic</em>
-<a href="http://www.example.com/">inline URL</a>
-<a href="tg://user?id=123456789">inline mention of a user</a>
-<code>inline fixed-width code</code>
-<pre>pre-formatted fixed-width code block</pre>
-<a href="${anime.image}">&#8205;</a>
-        `);
+        ctx.replyWithHTML(
+            `<b>${anime.title}</b>\n` +
+                `<a href="${anime.image}">&#8205;</a>` +
+                `<i>${anime.description}</i>\n` +
+                `<a href="${anime.link}">Watch on Twist.moe</a>\n`,
+            // @ts-ignore: Missing type
+            Extra.markup(
+                Markup.inlineKeyboard([
+                    Markup.callbackButton(
+                        `Follow ${anime.title}`,
+                        `follow ${anime.title}`,
+                    ),
+                ]),
+            ),
+        );
     }
+});
+
+// @ts-ignore: Missing type
+bot.action(/follow (.+)/g, async (ctx) => {
+    ctx.editMessageReplyMarkup(
+        Markup.inlineKeyboard([
+            Markup.callbackButton(
+                `Unfollow ${ctx.match[1]}`,
+                `unfollow ${ctx.match[1]}`,
+            ),
+        ]),
+    );
+});
+
+// @ts-ignore: Missing type
+bot.action(/unfollow (.+)/g, async (ctx) => {
+    ctx.editMessageReplyMarkup(
+        Markup.inlineKeyboard([
+            Markup.callbackButton(
+                `Follow ${ctx.match[1]}`,
+                `follow ${ctx.match[1]}`,
+            ),
+        ]),
+    );
 });
 
 bot.launch();

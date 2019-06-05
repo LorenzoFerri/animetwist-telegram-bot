@@ -14,7 +14,6 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "watch": "nodemon --exec \"tsc index.ts && node index.js\" ./index.ts",
-        "watch:serve": "ts-node index.ts"
+        "watch": "nodemon --exec ts-node -- ./index.ts"
     }
 }
