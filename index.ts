@@ -142,8 +142,10 @@ bot.action(/^unfollow (.+)/g, async (ctx) => {
 });
 
 bot.launch();
+console.info('Bot started');
 
 setInterval(async () => {
+    console.info('Fetching new episodes');
     const newEpisodes = await getLatestEpisodes();
     const lastEpisodes = db.get('lastEpisodes').value();
     let toSend;
