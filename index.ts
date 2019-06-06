@@ -32,7 +32,7 @@ async function getAnimeList(query = '') {
                 .filter((item) =>
                     item.title.toLowerCase().includes(query.toLowerCase()),
                 )
-                .slice(0, 50);
+                .slice(0, 10);
         });
 
     return animeFeed;
@@ -108,13 +108,11 @@ bot.action(/^follow (.+)/g, async (ctx) => {
     const anime = ctx.match[1];
     const chatId = ctx.chat.id;
     if (db.has(anime).value()) {
-        console.log('a');
         db.get(anime)
             // @ts-ignore: Missing type
             .push(chatId)
             .write();
     } else {
-        console.log('b');
         db.set(anime, [chatId]).write();
     }
     ctx.editMessageReplyMarkup(
@@ -131,7 +129,7 @@ bot.action(/^unfollow (.+)/g, async (ctx) => {
 
     db.get(anime)
         // @ts-ignore: Missing type
-        .filter((id) => id != chatId)
+        .remove((a) => a == chatId)
         .write();
 
     ctx.editMessageReplyMarkup(
@@ -142,3 +140,22 @@ bot.action(/^unfollow (.+)/g, async (ctx) => {
 });
 
 bot.launch();
+setInterval(async () => {
+    const newEpisodes = await getLatestEpisodes();
+    const lastEpisodes = db.get('lastEpisodes').value();
+    let toSend;
+    if (lastEpisodes) {
+        toSend = newEpisodes.filter((e) => lastEpisodes.includes(e));
+    } else {
+        toSend = newEpisodes;
+    }
+    db.set('lastEpisodes', newEpisodes).write();
+    for (let episode of toSend) {
+        const followers = db.get(episode.title).value();
+        if (followers) {
+            for (let user of followers) {
+                bot.telegram.sendMessage(user, episode.title + episode.episode);
+            }
+        }
+    }
+}, 5000);
