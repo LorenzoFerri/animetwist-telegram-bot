@@ -1,7 +1,7 @@
 import Telegraf from 'telegraf';
 import { Extra, Markup, Context } from 'telegraf';
 import * as lowdb from 'lowdb';
-import * as FileSync from 'lowdb/adapters/Filesync';
+import * as FileSync from 'lowdb/adapters/FileSync.js';
 import { getAnimeList, getLatestEpisodes } from './utils';
 const adapter = new FileSync('db.json');
 const db = lowdb(adapter);
