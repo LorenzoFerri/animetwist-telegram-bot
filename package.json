@@ -17,7 +17,7 @@
     },
     "scripts": {
         "watch": "nodemon --ignore db.json --exec ts-node -- ./index.ts",
-        "postinstall": "tsc - v && npx tsc index.ts utils.ts",
+        "postinstall": "tsc -v && npx tsc index.ts utils.ts",
         "start": "node index.js"
     }
 }
