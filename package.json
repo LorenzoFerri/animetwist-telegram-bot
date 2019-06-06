@@ -16,6 +16,7 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "watch": "nodemon --ignore db.json --exec ts-node -- ./index.ts"
+        "watch": "nodemon --ignore db.json --exec ts-node -- ./index.ts",
+        "start": "tsc index.ts utils.ts && node index.js"
     }
 }
