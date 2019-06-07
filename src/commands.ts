@@ -1,21 +1,13 @@
-import Telegraf from 'telegraf';
-import { Extra, Markup, Context } from 'telegraf';
 import * as lowdb from 'lowdb';
 import * as FileSync from 'lowdb/adapters/FileSync.js';
+import Telegraf, { ContextMessageUpdate, Extra, Markup } from 'telegraf';
 import { getAnimeList, getLatestEpisodes } from './utils';
+import { Episode } from './utils';
 const adapter = new FileSync('db.json');
 const db = lowdb(adapter);
 db.defaults({ anime: {}, lastEpisodes: [], allFollowers: [] }).write();
-require('dotenv').config();
-const bot = new Telegraf(process.env.BOT_TOKEN);
 
-bot.start(async (ctx) => {
-    const reply = `Anime Twist Bot
-Hi use /search <anime name> and select an anime that you would like to receive notifications on new episodes`;
-    ctx.reply(reply);
-});
-
-bot.command('search', async (ctx: any) => {
+export async function search(ctx: ContextMessageUpdate) {
     const query = ctx.update.message.text
         .split(' ')
         .slice(1)
@@ -59,9 +51,9 @@ bot.command('search', async (ctx: any) => {
             );
         }
     }
-});
+}
 
-bot.command('suball', async (ctx: any) => {
+export async function suball(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
     const allFollowers = db.get('allFollowers').value();
     if (!allFollowers.includes(chatId)) {
@@ -73,18 +65,18 @@ bot.command('suball', async (ctx: any) => {
             'You will now receive update on every new anime! To unsub use the command /unsuball',
         );
     }
-});
+}
 
-bot.command('unsuball', async (ctx: any) => {
+export async function unsuball(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
     db.get('allFollowers')
         // @ts-ignore: Missing type
         .remove((a) => a == chatId)
         .write();
     ctx.reply('You will no longer receive update on every new anime.');
-});
+}
 
-bot.command('list', (ctx) => {
+export function list(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
     const allAnime = db.get('anime').value();
     let list = [];
@@ -101,10 +93,9 @@ bot.command('list', (ctx) => {
             'You are not following any specific anime! Search for some using /search <anime name>',
         );
     }
-});
+}
 
-// @ts-ignore: Missing type
-bot.action(/^follow (.+)/g, async (ctx) => {
+export async function follow(ctx: ContextMessageUpdate & { match: string[] }) {
     const anime = ctx.match[1];
     const chatId = ctx.chat.id;
     const followers = db.get('anime.' + anime).value();
@@ -122,10 +113,11 @@ bot.action(/^follow (.+)/g, async (ctx) => {
             Markup.callbackButton(`❌ Unfollow ${anime}`, `unfollow ${anime}`),
         ]),
     );
-});
+}
 
-// @ts-ignore: Missing type
-bot.action(/^unfollow (.+)/g, async (ctx) => {
+export async function unfollow(
+    ctx: ContextMessageUpdate & { match: string[] },
+) {
     const anime = ctx.match[1];
     const chatId = ctx.chat.id;
 
@@ -139,15 +131,12 @@ bot.action(/^unfollow (.+)/g, async (ctx) => {
             Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),
         ]),
     );
-});
+}
 
-bot.launch();
-console.info('Bot started');
-
-setInterval(async () => {
+export async function update(bot: Telegraf<ContextMessageUpdate>) {
     console.info('Fetching new episodes');
     const newEpisodes = await getLatestEpisodes();
-    const lastEpisodes = db.get('lastEpisodes').value();
+    const lastEpisodes: Episode[] = db.get('lastEpisodes').value();
     let toSend;
     if (lastEpisodes && lastEpisodes.length > 0) {
         toSend = newEpisodes.filter(
@@ -181,4 +170,4 @@ setInterval(async () => {
             }
         }
     }
-}, 120 * 1000);
+}

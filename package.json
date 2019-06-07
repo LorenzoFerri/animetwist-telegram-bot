@@ -6,6 +6,7 @@
     "license": "MIT",
     "dependencies": {
         "@types/lowdb": "^1.0.9",
+        "@types/node-fetch": "^2.3.5",
         "dotenv": "^8.0.0",
         "lowdb": "^1.0.0",
         "node-fetch": "^2.6.0",
@@ -17,7 +18,6 @@
     },
     "scripts": {
         "watch": "nodemon --ignore db.json --exec ts-node -- ./index.ts",
-        "localbuild": "tsc index.ts utils.ts",
-        "start": "node index.js"
+        "start": "tsc && node build/index.js"
     }
 }
