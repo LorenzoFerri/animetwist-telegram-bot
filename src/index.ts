@@ -1,4 +1,5 @@
 import Telegraf from 'telegraf';
+
 import {
     follow,
     list,
@@ -8,9 +9,10 @@ import {
     unsuball,
     update,
 } from './commands';
-import { Client } from 'pg';
+
 require('dotenv').config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
 bot.start(async (ctx) => {
     const reply = `Anime Twist Bot
 Hi use /search <anime name> and select an anime that you would like to receive notifications on new episodes`;
@@ -25,8 +27,7 @@ bot.command('list', list);
 bot.action(/^follow (.+)/g, follow);
 // @ts-ignore: Missing type
 bot.action(/^unfollow (.+)/g, unfollow);
-bot.launch();
-
-console.info('Bot started');
-
-setInterval(() => update(bot), 120 * 1000);
+bot.launch().then(() => {
+    console.info('Bot started');
+    setInterval(() => update(bot), 120 * 1000);
+});

@@ -1,5 +1,4 @@
 import fetch from 'node-fetch';
-import { Client } from 'pg';
 
 export interface Anime {
     title: string;
@@ -44,13 +43,13 @@ export async function getAnimeList(query = '') {
             return res.items
                 .map((item: AnimeFetch) => {
                     return {
-                        title: item['title'],
+                        title: item.title,
                         id: item['animetwist:id'],
-                        link: item['link'],
+                        link: item.link,
                         image: `https://media.kitsu.io/anime/poster_images/${
                             item['kitsu:id']
                         }/large.jpg`,
-                        description: item['description'],
+                        description: item.description,
                     };
                 })
                 .filter((item: Anime) =>
@@ -74,8 +73,8 @@ export async function getLatestEpisodes() {
                 return {
                     title: item['anime:title'],
                     episode: item['episode:number'],
-                    description: item['description'],
-                    link: item['link'],
+                    description: item.description,
+                    link: item.link,
                     id: item['animetwist:id'],
                     image: `https://media.kitsu.io/anime/poster_images/${
                         item['kitsu:id']
@@ -88,5 +87,3 @@ export async function getLatestEpisodes() {
         });
     return episodesFeed;
 }
-// client.connect().then(() => console.log('conntexted'));
-// client.query(`INSERT INTO anime (title) VALUES ('ciaone');`);

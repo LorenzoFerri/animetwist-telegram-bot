@@ -1,13 +1,8 @@
-import * as lowdb from 'lowdb';
-import * as FileSync from 'lowdb/adapters/FileSync.js';
+import { Client } from 'pg';
 import Telegraf, { ContextMessageUpdate, Extra, Markup } from 'telegraf';
 
-import { Episode, getAnimeList, getLatestEpisodes } from './utils';
-import { Client } from 'pg';
+import { getAnimeList, getLatestEpisodes } from './utils';
 
-const adapter = new FileSync('db.json');
-const db = lowdb(adapter);
-db.defaults({ anime: {}, lastEpisodes: [], allFollowers: [] }).write();
 require('dotenv').config();
 
 const dataBase = new Client({
@@ -27,13 +22,12 @@ export async function search(ctx: ContextMessageUpdate) {
     } else {
         const animes = (await getAnimeList(query)).slice(0, 10);
         const chatId = ctx.chat.id;
-        for (let anime of animes) {
-            // const alreadyFollowing = db
-            //     .get('anime.' + anime.title)
-            //     // @ts-ignore: Missing
-            //     .includes(chatId)
-            //     .value();
-            const alreadyFollowing = false;
+        const alreadyFollowingQuery = `SELECT anime_id FROM follows WHERE chat_id=${chatId}`;
+        const alreadyFollowingList: number[] = (await dataBase.query(
+            alreadyFollowingQuery,
+        )).rows.map((row) => row.anime_id);
+        for (const anime of animes) {
+            const alreadyFollowing = alreadyFollowingList.includes(anime.id);
             const keyboard = !alreadyFollowing
                 ? Extra.markup(
                       Markup.inlineKeyboard([
@@ -66,38 +60,41 @@ export async function search(ctx: ContextMessageUpdate) {
 
 export async function suball(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
-    const allFollowers = db.get('allFollowers').value();
-    if (!allFollowers.includes(chatId)) {
-        db.get('allFollowers')
-            // @ts-ignore: Missing type
-            .push(chatId)
-            .write();
-        ctx.reply(
-            'You will now receive update on every new anime! To unsub use the command /unsuball',
-        );
+    const instert = `
+    INSERT INTO all_followers (chat_id)
+    VALUES (${chatId})
+    ON CONFLICT DO NOTHING`;
+    const select = `SELECT chat_id FROM all_followers WHERE chat_id=${chatId}`;
+    const selectResult = await dataBase.query(select);
+    if (selectResult.rowCount === 0) {
+        dataBase.query(instert).then(() => {
+            ctx.reply(
+                'You will now receive update on every new anime! To unsub use the command /unsuball',
+            );
+        });
     }
 }
 
 export async function unsuball(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
-    db.get('allFollowers')
-        // @ts-ignore: Missing type
-        .remove((a) => a == chatId)
-        .write();
-    ctx.reply('You will no longer receive update on every new anime.');
+    const query = `DELETE FROM all_followers WHERE chat_id=${chatId}`;
+    const result = await dataBase.query(query);
+    if (result.rowCount > 0) {
+        ctx.reply('You will no longer receive update on every new anime.');
+    }
 }
 
 export async function list(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
     const query = `
-    SELECT title FROM anime 
+    SELECT title FROM anime
     INNER JOIN follows
     ON anime.id = follows.anime_id
     WHERE follows.chat_id = ${chatId}`;
     const follows = await dataBase.query(query);
-    const list = follows.rows.map((res) => res.title);
-    if (list.length > 0) {
-        ctx.reply(list.join('\n'));
+    const animeList = follows.rows.map((res) => res.title);
+    if (animeList.length > 0) {
+        ctx.reply(animeList.join('\n'));
     } else {
         ctx.reply(
             'You are not following any specific anime! Search for some using /search <anime name>',
@@ -138,7 +135,7 @@ export async function unfollow(
     const animeId = queryId.rows[0].id;
     const chatId = ctx.chat.id;
     const query = `
-    DELETE FROM follows WHERE 
+    DELETE FROM follows WHERE
     chat_id = ${chatId} AND
     anime_id = ${animeId};`;
     dataBase.query(query).then(() => {
@@ -150,28 +147,52 @@ export async function unfollow(
     });
 }
 
+async function fetchAnimeAndSeed() {
+    const animeList = await getAnimeList();
+    const values = animeList.map(
+        (anime) => `(${anime.id},'${anime.title.replace(/'/g, "''")}')`,
+    );
+    const query = `INSERT INTO anime (id,title) VALUES ${values.join(
+        ',\n',
+    )} ON CONFLICT (id) DO NOTHING;`;
+    return dataBase.query(query);
+}
 export async function update(bot: Telegraf<ContextMessageUpdate>) {
+    await fetchAnimeAndSeed();
     console.info('Fetching new episodes');
     const newEpisodes = await getLatestEpisodes();
-    const lastEpisodes: Episode[] = db.get('lastEpisodes').value();
-    let toSend;
-    if (lastEpisodes && lastEpisodes.length > 0) {
-        toSend = newEpisodes.filter(
-            (e) => !lastEpisodes.some((old) => e.id == old.id),
+    const lastEpisodes = (await dataBase.query(
+        `SELECT anime_id, episode FROM last_episodes`,
+    )).rows;
+
+    const toSend = newEpisodes.filter((episode) => {
+        return !lastEpisodes.some(
+            (row: { anime_id: number; episode: number }) =>
+                row.anime_id === episode.id && row.episode === episode.episode,
         );
-    } else {
-        toSend = newEpisodes;
-    }
-    db.set('lastEpisodes', newEpisodes).write();
-    for (let episode of toSend) {
-        const animeFollowers: number[] =
-            db.get('anime.' + episode.title).value() || [];
-        const allFollowers: number[] = db.get('allFollowers').value() || [];
+    });
+
+    await dataBase.query('TRUNCATE TABLE last_episodes');
+    const toWrite = newEpisodes.map(
+        (episode) => `(${episode.id},${episode.episode})`,
+    );
+    const writeQuery = `
+    INSERT INTO last_episodes (anime_id,episode)
+    VALUES ${toWrite.join(',\n')}`;
+    await dataBase.query(writeQuery);
+
+    for (const episode of toSend) {
+        const animeFollowers: number[] = (await dataBase.query(
+            `SELECT chat_id FROM follows WHERE anime_id=${episode.id}`,
+        )).rows.map((row: { chat_id: number }) => row.chat_id);
+        const allFollowers: number[] = (await dataBase.query(
+            'SELECT * FROM all_followers',
+        )).rows.map((row: { chat_id: number }) => row.chat_id);
         const followers = Array.from(
             new Set([...animeFollowers, ...allFollowers]),
         );
         if (followers) {
-            for (let user of followers) {
+            for (const user of followers) {
                 bot.telegram.sendMessage(
                     user,
                     `<b>${episode.title} - ${episode.episode} </b>\n` +
