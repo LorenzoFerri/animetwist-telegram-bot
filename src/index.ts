@@ -8,9 +8,9 @@ import {
     unsuball,
     update,
 } from './commands';
+import { Client } from 'pg';
 require('dotenv').config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
-
 bot.start(async (ctx) => {
     const reply = `Anime Twist Bot
 Hi use /search <anime name> and select an anime that you would like to receive notifications on new episodes`;

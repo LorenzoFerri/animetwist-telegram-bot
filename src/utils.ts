@@ -1,4 +1,6 @@
 import fetch from 'node-fetch';
+import { Client } from 'pg';
+
 export interface Anime {
     title: string;
     id: number;
@@ -86,3 +88,5 @@ export async function getLatestEpisodes() {
         });
     return episodesFeed;
 }
+// client.connect().then(() => console.log('conntexted'));
+// client.query(`INSERT INTO anime (title) VALUES ('ciaone');`);

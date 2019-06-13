@@ -1,11 +1,21 @@
 import * as lowdb from 'lowdb';
 import * as FileSync from 'lowdb/adapters/FileSync.js';
 import Telegraf, { ContextMessageUpdate, Extra, Markup } from 'telegraf';
-import { getAnimeList, getLatestEpisodes } from './utils';
-import { Episode } from './utils';
+
+import { Episode, getAnimeList, getLatestEpisodes } from './utils';
+import { Client } from 'pg';
+
 const adapter = new FileSync('db.json');
 const db = lowdb(adapter);
 db.defaults({ anime: {}, lastEpisodes: [], allFollowers: [] }).write();
+require('dotenv').config();
+
+const dataBase = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: true,
+});
+
+dataBase.connect().then(() => console.log('db Connected'));
 
 export async function search(ctx: ContextMessageUpdate) {
     const query = ctx.update.message.text
@@ -18,11 +28,12 @@ export async function search(ctx: ContextMessageUpdate) {
         const animes = (await getAnimeList(query)).slice(0, 10);
         const chatId = ctx.chat.id;
         for (let anime of animes) {
-            const alreadyFollowing = db
-                .get('anime.' + anime.title)
-                // @ts-ignore: Missing
-                .includes(chatId)
-                .value();
+            // const alreadyFollowing = db
+            //     .get('anime.' + anime.title)
+            //     // @ts-ignore: Missing
+            //     .includes(chatId)
+            //     .value();
+            const alreadyFollowing = false;
             const keyboard = !alreadyFollowing
                 ? Extra.markup(
                       Markup.inlineKeyboard([
@@ -76,16 +87,15 @@ export async function unsuball(ctx: ContextMessageUpdate) {
     ctx.reply('You will no longer receive update on every new anime.');
 }
 
-export function list(ctx: ContextMessageUpdate) {
+export async function list(ctx: ContextMessageUpdate) {
     const chatId = ctx.chat.id;
-    const allAnime = db.get('anime').value();
-    let list = [];
-    for (let anime in allAnime) {
-        if (allAnime[anime].includes(chatId)) {
-            list.push(anime);
-        }
-    }
-
+    const query = `
+    SELECT title FROM anime 
+    INNER JOIN follows
+    ON anime.id = follows.anime_id
+    WHERE follows.chat_id = ${chatId}`;
+    const follows = await dataBase.query(query);
+    const list = follows.rows.map((res) => res.title);
     if (list.length > 0) {
         ctx.reply(list.join('\n'));
     } else {
@@ -97,40 +107,47 @@ export function list(ctx: ContextMessageUpdate) {
 
 export async function follow(ctx: ContextMessageUpdate & { match: string[] }) {
     const anime = ctx.match[1];
-    const chatId = ctx.chat.id;
-    const followers = db.get('anime.' + anime).value();
-    if (followers && !followers.includes(chatId)) {
-        db.get('anime.' + anime)
-            // @ts-ignore: Missing type
-            .push(chatId)
-            .uniq()
-            .write();
-    } else {
-        db.set('anime.' + anime, [chatId]).write();
-    }
-    ctx.editMessageReplyMarkup(
-        Markup.inlineKeyboard([
-            Markup.callbackButton(`❌ Unfollow ${anime}`, `unfollow ${anime}`),
-        ]),
+    const queryId = await dataBase.query(
+        `SELECT id FROM anime WHERE title = '${anime.replace(/'/g, "''")}'`,
     );
+    const animeId = queryId.rows[0].id;
+    const chatId = ctx.chat.id;
+    const query = `
+    INSERT INTO follows (chat_id,anime_id)
+    VALUES (${chatId},${animeId})
+    ON CONFLICT DO NOTHING;`;
+    dataBase.query(query).then(() => {
+        ctx.editMessageReplyMarkup(
+            Markup.inlineKeyboard([
+                Markup.callbackButton(
+                    `❌ Unfollow ${anime}`,
+                    `unfollow ${anime}`,
+                ),
+            ]),
+        );
+    });
 }
 
 export async function unfollow(
     ctx: ContextMessageUpdate & { match: string[] },
 ) {
     const anime = ctx.match[1];
-    const chatId = ctx.chat.id;
-
-    db.get('anime.' + anime)
-        // @ts-ignore: Missing type
-        .remove((a) => a == chatId)
-        .write();
-
-    ctx.editMessageReplyMarkup(
-        Markup.inlineKeyboard([
-            Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),
-        ]),
+    const queryId = await dataBase.query(
+        `SELECT id FROM anime WHERE title = '${anime.replace(/'/g, "''")}'`,
     );
+    const animeId = queryId.rows[0].id;
+    const chatId = ctx.chat.id;
+    const query = `
+    DELETE FROM follows WHERE 
+    chat_id = ${chatId} AND
+    anime_id = ${animeId};`;
+    dataBase.query(query).then(() => {
+        ctx.editMessageReplyMarkup(
+            Markup.inlineKeyboard([
+                Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),
+            ]),
+        );
+    });
 }
 
 export async function update(bot: Telegraf<ContextMessageUpdate>) {
