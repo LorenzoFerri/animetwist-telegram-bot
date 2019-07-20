@@ -33,7 +33,7 @@ export async function search(ctx: ContextMessageUpdate) {
                       Markup.inlineKeyboard([
                           Markup.callbackButton(
                               `✅ Follow ${anime.title}`,
-                              `follow ${anime.title}`,
+                              `follow ${anime.id}`,
                           ),
                       ]),
                   )
@@ -41,7 +41,7 @@ export async function search(ctx: ContextMessageUpdate) {
                       Markup.inlineKeyboard([
                           Markup.callbackButton(
                               `❌ Unfollow ${anime.title}`,
-                              `unfollow ${anime.title}`,
+                              `unfollow ${anime.id}`,
                           ),
                       ]),
                   );
@@ -53,7 +53,7 @@ export async function search(ctx: ContextMessageUpdate) {
                     `<a href="${anime.link}">Watch on Twist.moe</a>\n`,
                 // @ts-ignore: Missing type
                 keyboard,
-            );
+            ).catch((reason: any) => console.error(reason));
         }
     }
 }
@@ -103,11 +103,11 @@ export async function list(ctx: ContextMessageUpdate) {
 }
 
 export async function follow(ctx: ContextMessageUpdate & { match: string[] }) {
-    const anime = ctx.match[1];
-    const queryId = await dataBase.query(
-        `SELECT id FROM anime WHERE title = '${anime.replace(/'/g, "''")}'`,
+    const animeId = ctx.match[1];
+    const animeTitleQuery = await dataBase.query(
+        `SELECT title FROM anime WHERE id = '${animeId}'`,
     );
-    const animeId = queryId.rows[0].id;
+    const animeTitle = animeTitleQuery.rows[0].title;
     const chatId = ctx.chat.id;
     const query = `
     INSERT INTO follows (chat_id,anime_id)
@@ -117,8 +117,8 @@ export async function follow(ctx: ContextMessageUpdate & { match: string[] }) {
         ctx.editMessageReplyMarkup(
             Markup.inlineKeyboard([
                 Markup.callbackButton(
-                    `❌ Unfollow ${anime}`,
-                    `unfollow ${anime}`,
+                    `❌ Unfollow ${animeTitle}`,
+                    `unfollow ${animeId}`,
                 ),
             ]),
         );
@@ -128,11 +128,11 @@ export async function follow(ctx: ContextMessageUpdate & { match: string[] }) {
 export async function unfollow(
     ctx: ContextMessageUpdate & { match: string[] },
 ) {
-    const anime = ctx.match[1];
-    const queryId = await dataBase.query(
-        `SELECT id FROM anime WHERE title = '${anime.replace(/'/g, "''")}'`,
+    const animeId = ctx.match[1];
+    const animeTitleQuery = await dataBase.query(
+        `SELECT title FROM anime WHERE id = '${animeId}'`,
     );
-    const animeId = queryId.rows[0].id;
+    const animeTitle = animeTitleQuery.rows[0].title;
     const chatId = ctx.chat.id;
     const query = `
     DELETE FROM follows WHERE
@@ -141,7 +141,10 @@ export async function unfollow(
     dataBase.query(query).then(() => {
         ctx.editMessageReplyMarkup(
             Markup.inlineKeyboard([
-                Markup.callbackButton(`✅ Follow ${anime}`, `follow ${anime}`),
+                Markup.callbackButton(
+                    `✅ Follow ${animeTitle}`,
+                    `follow ${animeId}`,
+                ),
             ]),
         );
     });
